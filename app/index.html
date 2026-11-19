@@ -3,90 +3,122 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Neon Coast Cover Studio — GTA 6-style cover art, offline</title>
+<title>VICE DESK — Cover Art Studio</title>
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-<main class="app">
-  <section class="controls" aria-label="Cover controls">
-    <h1>Neon Coast Cover Studio</h1>
-    <p class="tagline">Your photo + a caption, made into GTA 6-style cover art. Offline — photos never leave your machine.</p>
+<div id="app" class="app">
+  <aside class="rail">
+    <header class="brand">
+      <h1>VICE <span>DESK</span></h1>
+      <p class="brand-sub">GTA-style cover art studio</p>
+      <div class="history-btns">
+        <button id="undo-btn" type="button">Undo</button>
+        <button id="redo-btn" type="button">Redo</button>
+      </div>
+    </header>
 
-    <label class="field">Photos
-      <span class="row">
-        <input id="upload" type="file" accept="image/*" multiple>
-        <button id="sampleBoulevard" type="button">Boulevard sample</button>
-        <button id="samplePier" type="button">Pier sample</button>
-      </span>
-    </label>
+    <section class="block" id="photos-block">
+      <h2>Photos</h2>
+      <div id="dropzone" class="dropzone">
+        <p>Drag photos here, or</p>
+        <label class="upload-btn">Add your photos
+          <input id="file-input" type="file" accept="image/*" multiple hidden>
+        </label>
+      </div>
+      <div id="photo-strip" class="photo-strip"></div>
+      <p class="hint">Click a photo to fill the selected panel. Every panel can hold a different photo.</p>
+    </section>
 
-    <fieldset>
-      <legend>1 · Layout</legend>
-      <div id="layouts" class="pick-row"></div>
-    </fieldset>
+    <section class="block" id="panel-block">
+      <h2>Panel <span id="panel-name" class="panel-name"></span></h2>
+      <label class="row-label" for="crop-zoom">Zoom</label>
+      <input id="crop-zoom" type="range" min="1" max="3" step="0.01" value="1">
+      <div class="btn-row">
+        <button id="crop-mode-btn" type="button">Mode: Fill</button>
+        <button id="crop-centre-btn" type="button">Centre photo</button>
+        <button id="swap-btn" type="button">Swap: off</button>
+      </div>
+      <p class="hint">Drag the selected panel on the cover to reposition its photo. With Swap on, click another panel to trade photos.</p>
+    </section>
 
-    <fieldset>
-      <legend>2 · Sunset / neon grade</legend>
-      <div id="grades" class="pick-row"></div>
-    </fieldset>
+    <section class="block" id="layout-block">
+      <h2>Layout</h2>
+      <div id="layout-grid" class="chip-grid"></div>
+    </section>
 
-    <fieldset>
-      <legend>3 · Caption</legend>
+    <section class="block" id="grade-block">
+      <h2>Colour grade</h2>
+      <div id="grade-grid" class="chip-grid"></div>
+      <div class="toggles">
+        <label><input type="checkbox" id="fx-grain" checked> Film grain</label>
+        <label><input type="checkbox" id="fx-vignette" checked> Vignette</label>
+        <label><input type="checkbox" id="fx-halftone"> Halftone dots</label>
+      </div>
+    </section>
+
+    <section class="block" id="caption-block">
+      <h2>Caption</h2>
       <label class="field">Title
-        <input id="title" type="text" maxlength="24" value="NEON SHORE">
+        <input id="cap-title" type="text" maxlength="26" value="VICE DESK">
       </label>
-      <label class="field">Subtitle (script)
-        <input id="subtitle" type="text" maxlength="32" value="one last ride">
+      <label class="field">Tagline
+        <input id="cap-tagline" type="text" maxlength="42" value="one last ride">
       </label>
-      <label class="field">Badge ribbon
-        <input id="badge" type="text" maxlength="14" value="VICE CITY">
+      <label class="field">Location ribbon
+        <input id="cap-ribbon" type="text" maxlength="20" value="VICE CITY">
       </label>
-      <label class="field">Heat
-        <select id="heat">
-          <option value="3">★★★</option>
-          <option value="4">★★★★</option>
-          <option value="5" selected>★★★★★</option>
-        </select>
-      </label>
-    </fieldset>
+      <label class="check"><input type="checkbox" id="cap-stars" checked> Five-star rating</label>
+      <p class="row-label">Title band</p>
+      <div id="theme-grid" class="chip-grid"></div>
+    </section>
 
-    <fieldset>
-      <legend>4 · Crop the selected panel</legend>
-      <div id="panels" class="pick-row"></div>
-      <label class="field">Photo for this panel
-        <select id="photoPick"></select>
-      </label>
-      <label class="field">Zoom <span id="zoomVal">112%</span>
-        <input id="zoom" type="range" min="1" max="3" step="0.05" value="1.12">
-      </label>
-      <p class="hint">Drag the cover to pan the selected panel. Scroll over it to zoom.</p>
-    </fieldset>
+    <section class="block" id="export-block">
+      <h2>Export</h2>
+      <div class="export-btns">
+        <button type="button" data-export="1080x1080">PNG · 1080 × 1080</button>
+        <button type="button" data-export="1080x1350">PNG · 1080 × 1350</button>
+        <button type="button" data-export="1920x1080">PNG · 1920 × 1080</button>
+        <button type="button" id="export-all-btn" class="primary">Export all three</button>
+        <button type="button" id="sheet-btn">Export sheet</button>
+      </div>
+      <p id="status" role="status" class="status"></p>
+    </section>
+  </aside>
 
-    <fieldset>
-      <legend>5 · Export</legend>
-      <label class="field">Preview size
-        <select id="aspect">
-          <option value="square">Square 1080 × 1080</option>
-          <option value="portrait">Portrait 1080 × 1350</option>
-          <option value="wide">Wide 1920 × 1080</option>
-          <option value="story">Story 1080 × 1920</option>
-        </select>
-      </label>
-      <span class="row">
-        <button id="exportOne" type="button" class="primary">Export this size</button>
-        <button id="exportAll" type="button" class="primary">Export all 4 sizes</button>
-      </span>
-      <span class="row">
-        <button id="undo" type="button">Undo</button>
-        <button id="redo" type="button">Redo</button>
-      </span>
-    </fieldset>
-    <p id="status" role="status"></p>
-  </section>
-  <section class="stage" aria-label="Cover preview">
-    <canvas id="cover" width="900" height="900" aria-label="The cover"></canvas>
-  </section>
-</main>
-<script type="module" src="./src/main.js"></script>
+  <main class="stage" id="stage">
+    <div class="stage-bar">
+      <span class="stage-label">Preview</span>
+      <div class="btn-row" id="preview-size-btns">
+        <button type="button" data-preview="1080x1080">Square</button>
+        <button type="button" data-preview="1080x1350">Portrait</button>
+        <button type="button" data-preview="1920x1080" class="active">Wide</button>
+      </div>
+    </div>
+    <div class="canvas-wrap" id="canvas-wrap">
+      <canvas id="preview" width="960" height="540"></canvas>
+    </div>
+    <div class="sheet" id="sheet" hidden>
+      <figure>
+        <canvas id="sheet-square" width="500" height="500"></canvas>
+        <figcaption>Square · 1080 × 1080</figcaption>
+      </figure>
+      <figure>
+        <canvas id="sheet-portrait" width="400" height="500"></canvas>
+        <figcaption>Portrait · 1080 × 1350</figcaption>
+      </figure>
+      <figure>
+        <canvas id="sheet-wide" width="760" height="428"></canvas>
+        <figcaption>Wide · 1920 × 1080</figcaption>
+      </figure>
+    </div>
+  </main>
+</div>
+
+<div id="present" hidden>
+  <canvas id="present-canvas" width="1920" height="1080"></canvas>
+</div>
+
+<script type="module" src="./src/app.js"></script>
 </body>
 </html>
