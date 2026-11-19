@@ -1,109 +1,132 @@
-// Sunset / neon colour grades for cover photos. Each grade is a shadow->mid->highlight
-// ramp used as a gradient map, plus a warm overlay tint. Grades are data only: the
-// pixel work lives in applyGradeToCanvas below.
-export const GRADES = {
-  sunset: {
-    label: 'Sunset',
-    ramp: [[24, 8, 48], [150, 40, 110], [255, 140, 70], [255, 225, 160]],
-    tint: 'rgba(255, 110, 60, 0.16)',
-    strength: 0.55,
-  },
-  neon: {
-    label: 'Neon Vice',
-    ramp: [[8, 6, 40], [90, 20, 130], [255, 45, 150], [120, 240, 255]],
-    tint: 'rgba(255, 40, 160, 0.14)',
-    strength: 0.62,
-  },
-  dusk: {
-    label: 'Dusk Purple',
-    ramp: [[16, 10, 44], [80, 40, 120], [200, 90, 160], [255, 200, 120]],
-    tint: 'rgba(120, 60, 220, 0.14)',
-    strength: 0.55,
-  },
-  teal: {
-    label: 'Teal Night',
-    ramp: [[4, 18, 34], [10, 70, 110], [30, 180, 190], [220, 255, 230]],
-    tint: 'rgba(0, 200, 220, 0.12)',
-    strength: 0.58,
-  },
-  golden: {
-    label: 'Golden Hour',
-    ramp: [[30, 16, 8], [140, 70, 30], [250, 160, 60], [255, 240, 190]],
-    tint: 'rgba(255, 170, 40, 0.15)',
-    strength: 0.5,
-  },
-  noir: {
-    label: 'Noir Pink',
-    ramp: [[6, 6, 10], [60, 30, 50], [190, 90, 120], [255, 220, 220]],
-    tint: 'rgba(255, 80, 120, 0.10)',
-    strength: 0.66,
-  },
-};
+// Colour grades for VICE DESK.
+//
+// A grade is real pixel work, never a flat wash. Each photo is pushed through
+// three stages built into 256-entry lookup tables:
+//   1. a contrast S-curve with a small black/white point lift,
+//   2. a saturation move around each pixel's own luminance,
+//   3. a split-tone gradient map: shadows, midtones and highlights are tinted
+//      toward three different colours, blended by luminance, so dark detail
+//      stays dark and readable while the highlights pick up the warm colour.
+// The blend keeps most of the pixel's own value, so faces, water and chrome
+// keep their texture; only the colour balance travels toward the grade.
 
-export const GRADE_IDS = Object.keys(GRADES);
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
 
-/** Builds a 256-entry RGB lookup table from a grade ramp (piecewise-linear). */
-export function buildGradeLut(grade) {
-  const lut = new Uint8Array(256 * 3);
-  const stops = grade.ramp;
+export const GRADES = [
+  {
+    id: 'golden-hour', name: 'Golden Hour',
+    shadow: '#232044', mid: '#c85a2e', high: '#ffd98c',
+    contrast: 1.14, saturation: 1.18, toneAmount: 0.42, warmth: 1.04,
+  },
+  {
+    id: 'neon-vice', name: 'Neon Vice',
+    shadow: '#0d1b3e', mid: '#d63384', high: '#ffe3f4',
+    contrast: 1.17, saturation: 1.3, toneAmount: 0.46, warmth: 1.0,
+  },
+  {
+    id: 'dusk-purple', name: 'Dusk Purple',
+    shadow: '#180d2e', mid: '#7a4ba6', high: '#ffc9a3',
+    contrast: 1.1, saturation: 1.12, toneAmount: 0.44, warmth: 1.02,
+  },
+  {
+    id: 'teal-night', name: 'Teal Night',
+    shadow: '#04222b', mid: '#177e84', high: '#c8f2ee',
+    contrast: 1.13, saturation: 1.08, toneAmount: 0.4, warmth: 0.97,
+  },
+  {
+    id: 'sunset-strip', name: 'Sunset Strip',
+    shadow: '#2e1030', mid: '#f2603c', high: '#ffe49b',
+    contrast: 1.12, saturation: 1.24, toneAmount: 0.45, warmth: 1.06,
+  },
+  {
+    id: 'noir-pink', name: 'Noir Pink',
+    shadow: '#0f0c18', mid: '#a05f83', high: '#f7e9f0',
+    contrast: 1.24, saturation: 0.82, toneAmount: 0.36, warmth: 1.0,
+  },
+];
+
+export function gradeById(id) {
+  return GRADES.find((g) => g.id === id) ?? GRADES[0];
+}
+
+// Builds the per-grade tables once: a value curve (contrast) and, for each of
+// the 256 luminance steps, the split-tone colour that step leans toward.
+function buildTables(grade) {
+  const curve = new Uint8ClampedArray(256);
+  const c = grade.contrast;
+  for (let i = 0; i < 256; i++) {
+    const x = i / 255;
+    // Smooth S-curve: pulls shadows down and highlights up around mid-grey.
+    const s = x + (c - 1) * Math.sin((x - 0.5) * Math.PI) * 0.28;
+    const lifted = 0.02 + s * 0.97; // gentle black/white points, no clipping crush
+    curve[i] = Math.max(0, Math.min(255, lifted * 255));
+  }
+  const sh = hexToRgb(grade.shadow);
+  const md = hexToRgb(grade.mid);
+  const hi = hexToRgb(grade.high);
+  const tone = [new Float32Array(256), new Float32Array(256), new Float32Array(256)];
   for (let i = 0; i < 256; i++) {
     const t = i / 255;
-    const seg = Math.min(stops.length - 2, Math.floor(t * (stops.length - 1)));
-    const local = t * (stops.length - 1) - seg;
-    for (let c = 0; c < 3; c++) {
-      lut[i * 3 + c] = Math.round(
-        stops[seg][c] + (stops[seg + 1][c] - stops[seg][c]) * local,
-      );
+    for (let ch = 0; ch < 3; ch++) {
+      // Piecewise ramp: shadow colour at 0, mid colour at 0.5, highlight at 1.
+      tone[ch][i] = t < 0.5
+        ? sh[ch] + (md[ch] - sh[ch]) * (t * 2)
+        : md[ch] + (hi[ch] - md[ch]) * ((t - 0.5) * 2);
     }
   }
-  return lut;
+  return { curve, tone };
 }
 
-/**
- * Applies a grade's gradient map in place on a canvas's pixels, blending the
- * mapped colour toward the original by the grade strength, then adds the tint.
- */
-export function applyGradeToCanvas(canvas, gradeId) {
-  const grade = GRADES[gradeId] ?? GRADES.sunset;
-  const ctx = canvas.getContext('2d');
-  const { width: w, height: h } = canvas;
-  const img = ctx.getImageData(0, 0, w, h);
-  const d = img.data;
-  const lut = buildGradeLut(grade);
-  const s = grade.strength;
+const tableCache = new Map();
+function tablesFor(grade) {
+  if (!tableCache.has(grade.id)) tableCache.set(grade.id, buildTables(grade));
+  return tableCache.get(grade.id);
+}
+
+// Applies a grade to an ImageData in place. Saturation and the split tone are
+// computed from the curved pixel so the three stages agree with each other.
+export function applyGradeToPixels(imageData, grade) {
+  const { curve, tone } = tablesFor(grade);
+  const d = imageData.data;
+  const sat = grade.saturation;
+  const amt = grade.toneAmount;
+  const keep = 1 - amt;
+  const warm = grade.warmth;
   for (let i = 0; i < d.length; i += 4) {
-    const lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) | 0;
-    const base = lum * 3;
-    d[i] = d[i] + (lut[base] - d[i]) * s;
-    d[i + 1] = d[i + 1] + (lut[base + 1] - d[i + 1]) * s;
-    d[i + 2] = d[i + 2] + (lut[base + 2] - d[i + 2]) * s;
+    let r = curve[d[i]];
+    let g = curve[d[i + 1]];
+    let b = curve[d[i + 2]];
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    r = lum + (r - lum) * sat;
+    g = lum + (g - lum) * sat;
+    b = lum + (b - lum) * sat;
+    const li = Math.max(0, Math.min(255, lum)) | 0;
+    // The pixel keeps most of itself; the tone colour steers its balance.
+    d[i] = r * keep + tone[0][li] * amt;
+    d[i + 1] = g * keep + tone[1][li] * amt;
+    d[i + 2] = b * keep + tone[2][li] * amt;
+    if (warm !== 1) {
+      d[i] = Math.min(255, d[i] * warm);
+      d[i + 2] = Math.min(255, d[i + 2] / warm);
+    }
   }
-  ctx.putImageData(img, 0, 0);
-  ctx.globalCompositeOperation = 'overlay';
-  ctx.fillStyle = grade.tint;
-  ctx.fillRect(0, 0, w, h);
-  ctx.globalCompositeOperation = 'source-over';
+  return imageData;
 }
 
-/**
- * Draws a photo cover-fitting a rect, with per-panel zoom and pan offsets, then
- * grades it. Offsets are fractions of the rect size (-0.5..0.5). The fit is
- * anchored toward the top of the photo (focusY 0 = top edge, 0.5 = centred),
- * so a face near the top survives a wide panel's crop; focusX anchors likewise.
- */
-export function drawGradedPhoto(ctx, photo, rect, gradeId, zoom, ox, oy, focusY = 0.25, focusX = 0.5) {
-  const pw = Math.max(2, Math.round(rect.w));
-  const ph = Math.max(2, Math.round(rect.h));
-  const tmp = drawGradedPhoto._tmp ?? (drawGradedPhoto._tmp = document.createElement('canvas'));
-  tmp.width = pw;
-  tmp.height = ph;
-  const tctx = tmp.getContext('2d', { willReadFrequently: true });
-  const scale = Math.max(pw / photo.naturalWidth, ph / photo.naturalHeight) * (zoom || 1);
-  const dw = photo.naturalWidth * scale;
-  const dh = photo.naturalHeight * scale;
-  const x0 = -(dw - pw) * focusX + (ox || 0) * pw;
-  const y0 = -(dh - ph) * focusY + (oy || 0) * ph;
-  tctx.drawImage(photo, x0, y0, dw, dh);
-  applyGradeToCanvas(tmp, gradeId);
-  ctx.drawImage(tmp, rect.x, rect.y, rect.w, rect.h);
+// Draws a photo onto a fresh canvas at (w, h) with the grade baked in. The
+// caller decides the resolution: the preview grades a capped copy, exports
+// grade the full-size frame, and both share the cache in app.js.
+export function renderGradedPhoto(img, grade, w, h) {
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w));
+  canvas.height = Math.max(1, Math.round(h));
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  applyGradeToPixels(pixels, grade);
+  ctx.putImageData(pixels, 0, 0);
+  return canvas;
 }
