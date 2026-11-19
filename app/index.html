@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Coast Cover Studio — GTA 6-style cover art, offline</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main class="app">
+  <section class="controls" aria-label="Cover controls">
+    <h1>Neon Coast Cover Studio</h1>
+    <p class="tagline">Your photo + a caption, made into GTA 6-style cover art. Offline — photos never leave your machine.</p>
+
+    <label class="field">Photos
+      <span class="row">
+        <input id="upload" type="file" accept="image/*" multiple>
+        <button id="sampleBoulevard" type="button">Boulevard sample</button>
+        <button id="samplePier" type="button">Pier sample</button>
+      </span>
+    </label>
+
+    <fieldset>
+      <legend>1 · Layout</legend>
+      <div id="layouts" class="pick-row"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2 · Sunset / neon grade</legend>
+      <div id="grades" class="pick-row"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3 · Caption</legend>
+      <label class="field">Title
+        <input id="title" type="text" maxlength="24" value="NEON SHORE">
+      </label>
+      <label class="field">Subtitle (script)
+        <input id="subtitle" type="text" maxlength="32" value="one last ride">
+      </label>
+      <label class="field">Badge ribbon
+        <input id="badge" type="text" maxlength="14" value="VICE CITY">
+      </label>
+      <label class="field">Heat
+        <select id="heat">
+          <option value="3">★★★</option>
+          <option value="4">★★★★</option>
+          <option value="5" selected>★★★★★</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>4 · Crop the selected panel</legend>
+      <div id="panels" class="pick-row"></div>
+      <label class="field">Photo for this panel
+        <select id="photoPick"></select>
+      </label>
+      <label class="field">Zoom <span id="zoomVal">112%</span>
+        <input id="zoom" type="range" min="1" max="3" step="0.05" value="1.12">
+      </label>
+      <p class="hint">Drag the cover to pan the selected panel. Scroll over it to zoom.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>5 · Export</legend>
+      <label class="field">Preview size
+        <select id="aspect">
+          <option value="square">Square 1080 × 1080</option>
+          <option value="portrait">Portrait 1080 × 1350</option>
+          <option value="wide">Wide 1920 × 1080</option>
+          <option value="story">Story 1080 × 1920</option>
+        </select>
+      </label>
+      <span class="row">
+        <button id="exportOne" type="button" class="primary">Export this size</button>
+        <button id="exportAll" type="button" class="primary">Export all 4 sizes</button>
+      </span>
+      <span class="row">
+        <button id="undo" type="button">Undo</button>
+        <button id="redo" type="button">Redo</button>
+      </span>
+    </fieldset>
+    <p id="status" role="status"></p>
+  </section>
+  <section class="stage" aria-label="Cover preview">
+    <canvas id="cover" width="900" height="900" aria-label="The cover"></canvas>
+  </section>
+</main>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
